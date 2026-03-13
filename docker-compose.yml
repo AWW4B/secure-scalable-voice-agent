@@ -1,0 +1,124 @@
+# =============================================================================
+# docker-compose.yml  (project root)
+# Services: backend (FastAPI) · redis · nginx (reverse proxy + frontend)
+#
+# ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+# │   Browser   │────▶│    nginx    │────▶│   backend   │
+# └─────────────┘     └─────────────┘     └──────┬──────┘
+#                                                 │
+#                                          ┌──────▼──────┐
+#                                          │    redis    │
+#                                          └─────────────┘
+#
+# Volumes:
+#   model-data  → GGUF model file (read-only in backend)    [Uwaid populates]
+#   db-data     → SQLite sessions.db persistence
+#   redis-data  → Redis RDB snapshot persistence
+# =============================================================================
+
+version: "3.9"
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # REDIS — session store for horizontal scaling
+  # Replaces the in-memory active_chats dict from A2.
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7.2-alpine
+    restart: unless-stopped
+    command: >
+      redis-server
+      --save 60 1
+      --loglevel warning
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal
+
+  # ---------------------------------------------------------------------------
+  # BACKEND — FastAPI + llama-cpp-python + local STT/TTS
+  #
+  # FILES AWWAB OWNS (already complete):
+  #   app/main.py         — middleware, CORS, rate limiting, lifespan
+  #   app/api/routes.py   — WebSocket (audio + text), REST endpoints, JWT stubs
+  #   app/core/config.py  — all constants, security config, token guardrail
+  #   app/memory/context.py  — Redis session management
+  #   app/memory/database.py — SQLite persistence + bleach sanitization
+  #
+  # FILES UWAID OWNS (stubs — must implement before voice works):
+  #   app/llm/engine.py   → transcribe_audio()  : Whisper STT
+  #   app/llm/engine.py   → synthesize_speech() : TTS (Kokoro/Piper)
+  #   app/llm/engine.py   → _llm variable       : load the GGUF model
+  #   /models/            → place your .gguf model file here
+  #
+  # ---------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      # Redis — points to the redis service on the internal network
+      - REDIS_URL=redis://redis:6379/0
+
+      # Model path — Uwaid: put your .gguf file in ./models/ and set filename here
+      - MODEL_PATH=/models/qwen2.5-3b-instruct-q4_k_m.gguf
+
+      # Security — set your real frontend URL here (Vercel deploy URL)
+      - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-http://localhost:3000}
+
+      # JWT — CHANGE THIS before any public deployment
+      - JWT_SECRET=${JWT_SECRET:-CHANGE_ME_IN_PRODUCTION}
+
+      # Python output unbuffered — ensures logs appear in docker logs immediately
+      - PYTHONUNBUFFERED=1
+    volumes:
+      # SQLite persistence — survives container restarts
+      - db-data:/data
+      # Model files — read-only, populated by Uwaid
+      - ./models:/models:ro
+    networks:
+      - internal
+    # Expose backend directly for local dev (bypass nginx)
+    # Comment this out in production — nginx handles all external traffic.
+    ports:
+      - "8000:8000"
+
+  # ---------------------------------------------------------------------------
+  # NGINX — reverse proxy + static frontend serving
+  # Handles TLS termination, WebSocket upgrade, and serving Rayan's frontend.
+  # ---------------------------------------------------------------------------
+  nginx:
+    image: nginx:1.25-alpine
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./frontend:/usr/share/nginx/html:ro
+    networks:
+      - internal
+      - external
+
+networks:
+  internal:
+    driver: bridge   # backend ↔ redis ↔ nginx (not exposed to host)
+  external:
+    driver: bridge   # nginx ↔ internet
+
+volumes:
+  redis-data:
+  db-data:
