@@ -22,7 +22,6 @@ services:
 
   # ---------------------------------------------------------------------------
   # REDIS — session store for horizontal scaling
-  # Replaces the in-memory active_chats dict from A2.
   # ---------------------------------------------------------------------------
   redis:
     image: redis:7.2-alpine
@@ -45,20 +44,6 @@ services:
 
   # ---------------------------------------------------------------------------
   # BACKEND — FastAPI + llama-cpp-python + local STT/TTS
-  #
-  # FILES AWWAB OWNS (already complete):
-  #   app/main.py         — middleware, CORS, rate limiting, lifespan
-  #   app/api/routes.py   — WebSocket (audio + text), REST endpoints, JWT stubs
-  #   app/core/config.py  — all constants, security config, token guardrail
-  #   app/memory/context.py  — Redis session management
-  #   app/memory/database.py — SQLite persistence + bleach sanitization
-  #
-  # FILES UWAID OWNS (stubs — must implement before voice works):
-  #   app/llm/engine.py   → transcribe_audio()  : Whisper STT
-  #   app/llm/engine.py   → synthesize_speech() : TTS (Kokoro/Piper)
-  #   app/llm/engine.py   → _llm variable       : load the GGUF model
-  #   /models/            → place your .gguf model file here
-  #
   # ---------------------------------------------------------------------------
   backend:
     build:
@@ -69,35 +54,62 @@ services:
       redis:
         condition: service_healthy
     environment:
-      # Redis — points to the redis service on the internal network
       - REDIS_URL=redis://redis:6379/0
-
-      # Model path — Uwaid: put your .gguf file in ./models/ and set filename here
       - MODEL_PATH=/models/qwen2.5-3b-instruct-q4_k_m.gguf
-
-      # Security — set your real frontend URL here (Vercel deploy URL)
       - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-http://localhost:3000}
-
-      # JWT — CHANGE THIS before any public deployment
       - JWT_SECRET=${JWT_SECRET:-CHANGE_ME_IN_PRODUCTION}
-
-      # Python output unbuffered — ensures logs appear in docker logs immediately
       - PYTHONUNBUFFERED=1
     volumes:
-      # SQLite persistence — survives container restarts
       - db-data:/data
-      # Model files — read-only, populated by Uwaid
       - ./models:/models:ro
     networks:
       - internal
-    # Expose backend directly for local dev (bypass nginx)
-    # Comment this out in production — nginx handles all external traffic.
     ports:
       - "8000:8000"
 
   # ---------------------------------------------------------------------------
-  # NGINX — reverse proxy + static frontend serving
-  # Handles TLS termination, WebSocket upgrade, and serving Rayan's frontend.
+  # FRONTEND DEV — Vite dev server with HMR (Rayan: use this for development)
+  #   docker compose up frontend-dev
+  #   → React app at http://localhost:3000
+  #   → All /api + /ws + /auth traffic proxied to backend:8000
+  # ---------------------------------------------------------------------------
+  frontend-dev:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./frontend:/app          # live source mounts — HMR works
+      - /app/node_modules        # anonymous volume so host node_modules don't shadow
+    command: sh -c "npm install && npm run dev"
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+    depends_on:
+      - backend
+    networks:
+      - internal
+      - external
+
+  # ---------------------------------------------------------------------------
+  # FRONTEND PROD — multi-stage build → nginx serving /dist
+  #   docker compose up frontend
+  #   → Optimised static bundle at http://localhost:8080
+  # ---------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - internal
+      - external
+
+  # ---------------------------------------------------------------------------
+  # NGINX reverse proxy (production only)
   # ---------------------------------------------------------------------------
   nginx:
     image: nginx:1.25-alpine
@@ -115,9 +127,9 @@ services:
 
 networks:
   internal:
-    driver: bridge   # backend ↔ redis ↔ nginx (not exposed to host)
+    driver: bridge
   external:
-    driver: bridge   # nginx ↔ internet
+    driver: bridge
 
 volumes:
   redis-data:

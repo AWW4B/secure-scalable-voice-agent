@@ -31,7 +31,7 @@ from app.core.config import (
     truncate_to_token_limit,
 )
 from app.llm.engine import llm_engine
-from app.main import limiter                       # shared slowapi Limiter instance
+from app.core.limiter import limiter                 # shared slowapi Limiter instance
 from app.memory.context import (
     get_chat_history,
     get_or_create_session,

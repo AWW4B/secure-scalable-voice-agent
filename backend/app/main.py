@@ -18,14 +18,14 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
-from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.api.routes import router
 from app.core.config import FRONTEND_ORIGIN, MAX_PAYLOAD_BYTES
+from app.core.limiter import limiter
 
 # =============================================================================
 # LOGGING
@@ -36,13 +36,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-
-# =============================================================================
-# RATE LIMITER (slowapi)
-# Shared limiter instance — imported by routes.py to decorate endpoints.
-# Key function: get_remote_address extracts the client IP from the request.
-# =============================================================================
-limiter = Limiter(key_func=get_remote_address)
 
 
 # =============================================================================
