@@ -23,7 +23,7 @@ function IconBtn({ id, title, onClick, children }) {
 
 export default function ChatHeader({
   onReset, onMinimize, onClose, onToggleHistory,
-  turnsUsed, turnsMax, status, isPlaying, onLogout,
+  turnsUsed, turnsMax, status, isPlaying, onLogout, backendStatus
 }) {
   return (
     <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-[#F57224] to-[#ff8c42] rounded-t-2xl flex-shrink-0">
@@ -37,9 +37,9 @@ export default function ChatHeader({
         <div className="flex items-center gap-2">
           <span className="text-white font-semibold text-sm truncate">Daraz Assistant</span>
           {/* Online indicator */}
-          <div className="relative flex-shrink-0">
-            <span className="pulse-ring absolute w-2.5 h-2.5 rounded-full bg-green-400 opacity-60" />
-            <span className="w-2.5 h-2.5 rounded-full bg-green-400 block" />
+          <div className="relative flex-shrink-0 flex items-center gap-1.5 ml-1">
+            <span className={`w-2.5 h-2.5 rounded-full ${backendStatus === 'online' ? 'bg-green-400' : backendStatus === 'offline' ? 'bg-red-400' : 'bg-yellow-400'}`} />
+            <span className="text-[10px] text-white/90 capitalize font-medium">{backendStatus === 'online' ? 'Backend Online' : backendStatus === 'offline' ? 'Backend Offline' : 'Connecting...'}</span>
           </div>
           {/* Playing waveform */}
           {isPlaying && (

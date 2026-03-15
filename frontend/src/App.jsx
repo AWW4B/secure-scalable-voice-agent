@@ -41,7 +41,7 @@ export default function App() {
   if (mode === 'fullpage') {
     return (
       <div className="relative">
-        <FullPageChat onLogout={logout} />
+        <FullPageChat onLogout={logout} backendStatus={backendStatus} />
         <motion.button
           id="switch-widget-btn"
           whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
@@ -139,7 +139,7 @@ export default function App() {
       </main>
 
       {/* Floating chat widget */}
-      <ChatWidget onLogout={logout} />
+      <ChatWidget onLogout={logout} backendStatus={backendStatus} />
     </div>
   )
 }
