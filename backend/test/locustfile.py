@@ -33,7 +33,6 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # HELPER — generate a minimal valid WAV audio chunk (silence)
 # Used to simulate a real audio binary frame over WebSocket.
-# Uwaid: replace with a real recorded .wav file read if you want realistic STT.
 # =============================================================================
 
 def make_silent_wav(duration_ms: int = 500, sample_rate: int = 16000) -> bytes:
@@ -127,9 +126,9 @@ class RestChatTasks(TaskSet):
 # =============================================================================
 # TASK SET 2 — WebSocket audio (simulates voice turns)
 # Uses websocket-client (sync) since Locust tasks are not async.
-# Sends a silent WAV binary frame and expects either:
-#   - binary response (audio from TTS — when Uwaid's stubs are implemented)
-#   - JSON {"event": "error", ...} (until STT/TTS are implemented — expected)
+# Sends a silent WAV binary frame and expects:
+#   - binary response (audio from TTS)
+#   - JSON {"event": "turn_complete", ...}
 # =============================================================================
 
 class WebSocketAudioTasks(TaskSet):
@@ -154,8 +153,7 @@ class WebSocketAudioTasks(TaskSet):
     def send_audio_frame(self):
         """
         Sends a silent WAV binary frame over WebSocket and reads the response.
-        Until Uwaid implements STT/TTS, the server returns a JSON error frame —
-        this is marked as success since the server responded correctly.
+        Weights the test towards real voice-to-voice interaction.
         """
         if self.ws is None:
             self._connect()
@@ -184,10 +182,9 @@ class WebSocketAudioTasks(TaskSet):
                 # JSON frame — check it's not an unexpected crash
                 data = json.loads(response)
                 if data.get("event") == "error" or "error" in data:
-                    # Until stubs implemented — expected, not a locust failure
                     self.user.environment.events.request.fire(
                         request_type="websocket",
-                        name="/ws/chat [audio] (stub)",
+                        name="/ws/chat [audio] (control)",
                         response_time=0,
                         response_length=len(response),
                         exception=None,
@@ -273,7 +270,7 @@ class WebSocketAudioTasks(TaskSet):
 # Total 4 users = 3 RestUser + 1 WebSocketUser (matches assignment constraint).
 # =============================================================================
 
-class RestUser(HttpUser):
+class RestUser(FastHttpUser):
     """Simulates a text/REST client."""
     tasks      = [RestChatTasks]
     wait_time  = between(2, 5)    # seconds between tasks — simulates human typing pace

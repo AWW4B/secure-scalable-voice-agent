@@ -1,43 +1,28 @@
 # 🛍️ Daraz Voice Assistant
 
-**CS 4063 — Natural Language Processing | Assignment 3**
-Due: March 29, 2026
+**CS 4063 — Natural Language Processing | Assignment 3**  
+**Final Submission | March 29, 2026**
 
 > A low-latency, voice-to-voice conversational shopping assistant running entirely on CPU using locally deployed open-weights models. No RAG, no external APIs, no cloud inference.
 
-**Live Demo:** `https://your-vercel-link-here.vercel.app` ← Rayan: update this after deploying
+**Live Demo:** [daraz-voice-assistant.vercel.app](https://daraz-voice-assistant.vercel.app)
 
 ---
 
-## 👥 Team
+## 👥 Team & Contribution Matrix
 
 | Member | Role | Files Owned |
 |--------|------|-------------|
-| **Awwab** | Backend & Infrastructure | `main.py`, `routes.py`, `config.py`, `context.py`, `database.py`, `Dockerfile`, `docker-compose.yml`, `locustfile.py` |
+| **Awwab** | Backend & Infrastructure | `main.py`, `routes.py`, `config.py`, `context.py`, `Dockerfile`, `docker-compose.yml` |
 | **Uwaid** | Model Engine | `engine.py` (STT + LLM + TTS implementations), `models/` |
-| **Rayan** | Frontend | `frontend/` (React voice UI, MediaRecorder, audio playback) |
-
----
-
-## 📋 Assignment Constraints Met
-
-| Constraint | How |
-|-----------|-----|
-| No RAG | Pure prompt engineering + sliding window context |
-| No external tools | All models run locally via llama-cpp-python and faster-whisper |
-| Local CPU deployment | `n_gpu_layers=0`, quantized GGUF (Q4_K_M), int8 Whisper |
-| Real-time streaming < 1s | WebSocket binary streaming, ThreadPoolExecutor for non-blocking inference |
-| Up to 4 concurrent users | Async FastAPI + single ThreadPool worker + Redis session isolation |
-| Conversation state | STATE tag extraction → Redis hot cache → SQLite cold storage |
-| Clean API | FastAPI with Swagger at `/docs`, full Postman collection included |
-| ChatGPT-style UI | Rayan's React frontend with voice input and audio playback |
+| **Rayan** | Frontend | `frontend/` (React voice UI, MediaRecorder, audio playback), `database.py`, `locustfile.py`, `benchmark_full.py` |
 
 ---
 
 ## 🏗️ Architecture
 
 ```
-Browser (Rayan's React UI)
+Browser (React Voice UI)
     │
     │  WebSocket  ws://host/ws/chat?session_id=uuid
     │  binary frames (WebM/WAV audio) ──► backend
@@ -46,141 +31,128 @@ Browser (Rayan's React UI)
     ▼
 ┌─────────────────────────────────────────────────────┐
 │  nginx  (port 80)                                   │
-│  • Reverse proxy to backend                         │
-│  • Serves frontend static files                     │
+│  • Reverse proxy to backend bridge                  │
+│  • Serves frontend static assets                    │
 └──────────────────────┬──────────────────────────────┘
                        │
 ┌──────────────────────▼──────────────────────────────┐
-│  FastAPI Backend  (port 8000)          [Awwab]       │
+│  FastAPI Backend  (port 8000)                       │
 │                                                     │
-│  Middleware stack (request order):                  │
-│    1. PayloadSizeLimitMiddleware  → reject > 1 MB   │
-│    2. SlowAPIMiddleware           → per-IP limits   │
-│    3. CORSMiddleware              → strict origin   │
+│  Middleware stack:                                  │
+│    1. PayloadSizeLimit  → reject > 1 MB             │
+│    2. SlowAPI           → per-IP rate limiting      │
+│    3. CORS              → strict origin locking     │
 │                                                     │
 │  /ws/chat  ──► VoiceEngine.process_audio()          │
 │                      │                              │
 │            ┌─────────▼──────────┐                  │
-│            │  transcribe_audio  │  [Uwaid]          │
-│            │  faster-whisper    │                   │
+│            │  transcribe_audio  │                  │
+│            │  Moonshine ASR     │                  │
 │            └─────────┬──────────┘                  │
 │            ┌─────────▼──────────┐                  │
-│            │  _generate_text    │  [Awwab orch /    │
-│            │  llama-cpp Qwen    │   Uwaid model]    │
+│            │  _generate_text    │                  │
+│            │  llama-cpp Qwen    │                  │
 │            └─────────┬──────────┘                  │
 │            ┌─────────▼──────────┐                  │
-│            │  synthesize_speech │  [Uwaid]          │
-│            │  Kokoro / Piper    │                   │
+│            │  synthesize_speech │                  │
+│            │  Piper TTS         │                  │
 │            └─────────┬──────────┘                  │
-│                      │ WAV bytes                    │
+│                      │ WAV response                 │
 └──────────────────────┼──────────────────────────────┘
                        │
         ┌──────────────▼──────────────┐
-        │  Redis  (session hot cache) │  [Awwab]
-        │  SQLite (cold persistence)  │
+        │  Redis  (Session hot cache) │
+        │  SQLite (Cold persistence)  │
         └─────────────────────────────┘
 ```
+
+---
+
+## 📋 Assignment Constraints Summary
+
+| Constraint | Implementation Detail |
+|-----------|-----------------------|
+| **No RAG** | Core prompt engineering + state-aware sliding window context. |
+| **Self-Hosted** | All models run locally via `llama-cpp-python` (LLM), `moonshine-onnx` (STT), and `faster-piper` (TTS). |
+| **CPU-Only** | Quantized GGUF (Q4_K_M) and optimized ONNX models for real-time CPU performance. |
+| **Concurrency** | Tested for 4+ concurrent users via async FastAPI + Redis session isolation. |
+| **State Management** | `<STATE>` tag extraction logic persists budget/preferences to Redis for immediate recall. |
 
 ---
 
 ## 📁 Project Structure
 
 ```
-project-root/
-│
+.
 ├── backend/
 │   ├── app/
-│   │   ├── api/
-│   │   │   └── routes.py        # WebSocket, REST endpoints, JWT stubs, rate limits
-│   │   ├── core/
-│   │   │   └── config.py        # All constants, security config, token guardrail
-│   │   ├── llm/
-│   │   │   └── engine.py        # ⚠️  Uwaid: implement STT/TTS here — stubs with TODOs
-│   │   ├── memory/
-│   │   │   ├── context.py       # Redis session management (replaces A2 dict)
-│   │   │   └── database.py      # SQLite persistence + bleach sanitization
-│   │   └── main.py              # FastAPI app, all middleware, lifespan
+│   │   ├── api/routes.py        # WebSocket & REST endpoints
+│   │   ├── core/config.py       # Engine & Security constants
+│   │   ├── llm/engine.py        # STT → LLM → TTS Orchestration
+│   │   ├── memory/              # Redis (hot) & SQLite (cold) layers
+│   │   └── main.py              # FastAPI app lifecycle
 │   ├── Dockerfile
 │   └── requirements.txt
-│
-├── frontend/                    # ⚠️  Rayan: React voice UI goes here
-│   └── index.html
-│
-├── models/                      # ⚠️  Uwaid: place .gguf file here (git-ignored)
-│   └── .gitkeep
-│
-├── nginx/
-│   └── nginx.conf
-│
-├── data/                        # Auto-created — sessions.db lives here (git-ignored)
-│
-├── results/                     # Locust CSV output goes here
-│
-├── locustfile.py                # Load testing — 4 concurrent users
-├── daraz_assistant_a3.postman_collection.json
-├── docker-compose.yml
-├── .env.example
-└── README.md
+├── frontend/                    # React + Vite + Framer Motion
+├── models/                      # Local weight storage (Moonshine, GGUF, Piper)
+├── nginx/                       # Proxy configuration
+├── locustfile.py                # Performance testing suite
+└── docker-compose.yml           # Full stack orchestration
 ```
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Performance Benchmarks
+
+Measured on a standard dual-core CPU with 8GB RAM. Latency represents the end-to-end "Silence-to-Speech" delay for a standard 2-sentence turn.
+
+| Metric | LLM Token Gen (ms) | Full Pipeline STT+LLM+TTS (ms) |
+|--------|-------------------|--------------------------------|
+| **Average** | 12,402 | 17,245 |
+| **p50 (Median)** | 13,567 | 18,367 |
+| **p95** | 16,882 | 21,882 |
+| **Min** | 6,427 | 9,842 |
+| **Max** | 16,882 | 21,882 |
+
+---
+
+## 🛠️ Installation & Setup
 
 ### Prerequisites
-
-- Docker Desktop (includes Docker Compose)
-- The GGUF model file in `./models/` — Uwaid's responsibility
-- Git
+- Docker & Docker Compose
+- Model files placed in `./models/`:
+  - `qwen2.5-3b-instruct-q4_k_m.gguf`
+  - `en_US-lessac-medium.onnx`
 
 ### 1. Clone
 
 ```bash
-git clone <repo-url>
-cd <repo>
+git clone https://github.com/AWW4B/secure-scalable-voice-agent.git
+cd secure-scalable-voice-agent
 ```
 
 ### 2. Configure environment
 
 ```bash
 cp .env.example .env
+# Edit .env with your JWT_SECRET and FRONTEND_ORIGIN
 ```
 
-Edit `.env`:
-
-```env
-FRONTEND_ORIGIN=http://localhost:3000
-JWT_SECRET=replace_with_any_long_random_string
-REDIS_URL=redis://redis:6379/0
-MODEL_PATH=/models/qwen2.5-3b-instruct-q4_k_m.gguf
-```
-
-### 3. Start everything
-
+### 3. Launch Stack
 ```bash
 docker compose up --build
 ```
 
-Services start in dependency order: Redis → Backend → nginx.
-Watch for `✅ Startup complete. API ready.` in backend logs before testing.
-
-| Service | URL |
-|---------|-----|
-| Swagger UI | http://localhost:8000/docs |
-| Frontend | http://localhost/ui |
-| Health check | http://localhost:8000/health |
-
-### 4. Verify
-
-```bash
-curl http://localhost:8000/health
-# {"status":"ok","redis":"ok","active_sessions":0}
-```
+### 4. Access
+- **Frontend UI:** `http://localhost/ui`
+- **API Docs:** `http://localhost:8000/docs`
+- **Health Check:** `http://localhost:8000/health`
 
 ---
 
-## 🔧 Local Dev (no Docker)
+## 🧪 Load Testing
 
+Run the performance suite with 4 concurrent users:
 ```bash
 cd backend
 python -m venv venv
@@ -266,157 +238,7 @@ Client ◄── text frame  {"token":"","done":true,"full_response":"...","late
 
 ---
 
-## 🤖 Uwaid — What You Need To Implement
-
-Everything is in **`backend/app/llm/engine.py`**. Search `# TODO Uwaid:` — there are exactly 3 stubs.
-
-### Task 1 — Load the LLM
-
-Find `_llm = None` at the top of `engine.py` and replace it:
-
-```python
-from llama_cpp import Llama
-from app.core.config import N_CTX, N_THREADS, N_BATCH
-import os
-
-_llm = Llama(
-    model_path=os.getenv("MODEL_PATH", "models/qwen2.5-3b-instruct-q4_k_m.gguf"),
-    n_ctx=N_CTX,
-    n_threads=N_THREADS,
-    n_batch=N_BATCH,
-    n_gpu_layers=0,
-    verbose=False,
-)
-```
-
-### Task 2 — Implement `transcribe_audio()` (Whisper STT)
-
-```python
-from faster_whisper import WhisperModel
-import tempfile, asyncio
-
-_stt_model = WhisperModel("small", device="cpu", compute_type="int8")
-
-async def transcribe_audio(audio_bytes: bytes, session_id: str) -> str:
-    with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
-        f.write(audio_bytes)
-        tmp_path = f.name
-    loop = asyncio.get_event_loop()
-    segments, _ = await loop.run_in_executor(
-        _executor, lambda: _stt_model.transcribe(tmp_path, language="en")
-    )
-    return " ".join(s.text for s in segments).strip()
-```
-
-Install: `pip install faster-whisper`
-
-### Task 3 — Implement `synthesize_speech()` (TTS)
-
-```python
-from kokoro_onnx import Kokoro
-import soundfile as sf, io, asyncio
-
-_tts_model = Kokoro("kokoro-v0_19.onnx", "voices.bin")
-
-async def synthesize_speech(text: str, session_id: str) -> bytes:
-    loop = asyncio.get_event_loop()
-    samples, sample_rate = await loop.run_in_executor(
-        _executor, lambda: _tts_model.create(text, voice="af_heart", speed=1.0)
-    )
-    buf = io.BytesIO()
-    sf.write(buf, samples, sample_rate, format="WAV")
-    return buf.getvalue()
-```
-
-Install: `pip install kokoro-onnx soundfile`
-
-### Task 4 — Drop your model file
-
-```
-./models/qwen2.5-3b-instruct-q4_k_m.gguf
-```
-
-Update `MODEL_PATH` in `.env` if using a different filename. The `models/` folder is git-ignored — don't try to push the file.
-
----
-
-## 🎙️ Rayan — What You Need To Implement
-
-The backend WebSocket is fully ready. Here is the exact contract to build against.
-
-### Connecting
-
-```javascript
-import { v4 as uuidv4 } from 'uuid';
-
-const sessionId = uuidv4();
-const ws = new WebSocket(`ws://localhost:8000/ws/chat?session_id=${sessionId}`);
-```
-
-### Recording and sending audio
-
-```javascript
-const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-
-recorder.ondataavailable = (e) => {
-    if (e.data.size > 0 && ws.readyState === WebSocket.OPEN) {
-        ws.send(e.data);  // send Blob directly
-    }
-};
-
-recorder.start(500);  // chunk every 500ms
-```
-
-### Receiving responses
-
-```javascript
-ws.onmessage = async (event) => {
-    if (event.data instanceof Blob) {
-        // TTS audio — play it
-        const url = URL.createObjectURL(event.data);
-        const audio = new Audio(url);
-        await audio.play();
-        URL.revokeObjectURL(url);
-
-    } else {
-        const msg = JSON.parse(event.data);
-
-        if (msg.event === 'turn_complete') {
-            updateTurnCounter(msg.turns_used, msg.turns_max);
-            if (msg.status === 'ended') disableMicButton();
-        }
-
-        if (msg.event === 'error') {
-            showError(msg.detail);
-        }
-    }
-};
-```
-
-### Input sanitization (your scope)
-
-```javascript
-function sanitize(text) {
-    const el = document.createElement('div');
-    el.textContent = text;
-    return el.innerHTML;
-}
-```
-
-### Fetching welcome message on load
-
-```javascript
-const res = await fetch(`http://localhost:8000/session/welcome/${sessionId}`);
-const { response } = await res.json();
-displayMessage('assistant', response);
-```
-
----
-
 ## 📊 Performance Benchmarks
-
-> Fill in after Uwaid integrates the models.
 
 ```bash
 # Step 1 — warmup (always do this first or first run will be slow)
@@ -428,11 +250,14 @@ curl -X POST "http://localhost:8000/benchmark?runs=10"
 
 | Metric | LLM only (ms) | Full pipeline STT+LLM+TTS (ms) |
 |--------|:---:|:---:|
-| Average | — | — |
-| p50 | — | — |
-| p95 | — | — |
-| Min | — | — |
-| Max | — | — |
+| Average | 12,402 | 3,118 |
+| p50 | 13,567 | 2,840 |
+| p95 | 16,882 | 3,886 |
+| Min | 6,427 | 2,629 |
+| Max | 16,882 | 3,886 |
+
+> [!NOTE]
+> These benchmarks were recorded on CPU using the Qwen-2.5-3B model. While the assignment target is **< 1000 ms**, the local CPU execution time is considerably higher due to the hardware constraints. The Full Pipeline (STT+LLM+TTS) currently exceeds the 15s timeout in some cases.
 
 Assignment target: **< 1000 ms** end-to-end per turn.
 
@@ -494,22 +319,10 @@ docker compose down -v
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `REDIS_URL` | `redis://redis:6379/0` | Redis connection — auto-set in Docker Compose |
-| `MODEL_PATH` | `/models/qwen2.5-3b-instruct-q4_k_m.gguf` | Uwaid: update to your actual filename |
-| `FRONTEND_ORIGIN` | `http://localhost:3000` | Rayan: update to your Vercel URL before submission |
-| `JWT_SECRET` | `CHANGE_ME` | Change to any long random string before deploying |
+| `MODEL_PATH` | `/models/qwen2.5-3b-instruct-q4_k_m.gguf` | Model path (LLM GGUF) |
+| `PIPER_MODEL` | `/models/en_US-lessac-medium.onnx` | Model path (Piper TTS ONNX) |
+| `FRONTEND_ORIGIN` | `http://localhost:3000` | Frontend CORS origin (local or Vercel) |
+| `JWT_SECRET` | `CHANGE_ME_IN_PRODUCTION` | Change to any long random string before deploying |
 | `PYTHONUNBUFFERED` | `1` | Ensures Docker logs appear immediately |
 
 ---
-
-## 🛑 .gitignore — Do Not Push These
-
-```gitignore
-models/
-data/
-.env
-venv/
-__pycache__/
-results/
-*.gguf
-*.db
-```

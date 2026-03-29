@@ -1,13 +1,10 @@
 # =============================================================================
 # app/main.py
-# Awwab — Security & Infrastructure refactor for A3 (Voice-to-Voice).
-#
-# Changes from A2:
-#   • PayloadSizeLimitMiddleware  — rejects requests > MAX_PAYLOAD_BYTES (1 MB)
-#   • slowapi rate limiting       — per-IP limits on all routes
-#   • Strict CORSMiddleware       — locked to FRONTEND_ORIGIN env var
-#   • JWT auth stubs              — /auth/login, /auth/refresh endpoints
-#   • Redis lifespan init         — verifies Redis connection at startup
+# Security & Infrastructure for Daraz Voice Assistant (A3).
+#   • Payload size limits (1MB max safety guard)
+#   • Rate limiting (SlowAPI) on all endpoints
+#   • Strict CORS configuration (locked to frontend origin)
+#   • Persistent session management (Redis + SQLite)
 # =============================================================================
 
 import logging

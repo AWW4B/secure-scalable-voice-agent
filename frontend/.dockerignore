@@ -1,37 +1,27 @@
-# -------------------------------------------------------
-# frontend/.dockerignore
-# Excludes large/generated directories from the Docker
-# build context so they are never uploaded to the daemon.
-# node_modules is re-installed cleanly inside the image
-# by `npm ci`, so sending the host copy would just slow
-# things down and risk native binary mismatches.
-# -------------------------------------------------------
-
-# Dependencies — re-installed inside image via npm ci
+# Node modules (huge context)
 node_modules/
-
-# Production build output — produced inside image; not needed as input
 dist/
-
-# Vite cache
 .vite/
+*.log
 
-# Editor / OS noise
-.DS_Store
-Thumbs.db
-*.swp
-*.swo
-.idea/
-.vscode/
-
-# Git
+# Git and IDEs
 .git/
 .gitignore
+.dockerignore
+.vscode/
+.idea/
+.cursor/
+.cursorignore
+.cursorindexingignore
 
-# Env files — secrets must come from docker-compose / CI env vars, not baked in
-.env
-.env.*
-!.env.example
+# Models
+models/
+data/
+*.gguf
+*.onnx
+*.onnx.json
+*.db
 
-# Test / coverage artefacts
-coverage/
+# OS Junk
+.DS_Store
+Thumbs.db

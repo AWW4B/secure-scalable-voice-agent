@@ -1,14 +1,11 @@
 # =============================================================================
 # app/api/routes.py
-# Awwab — A3 refactor: audio WebSocket, JWT auth stubs, rate limiting,
-#         input sanitization, token truncation guardrail.
-#
-# Changes from A2:
-#   • /ws/chat          — now accepts binary audio frames, returns binary audio
-#   • /auth/login       — JWT stub (returns token in HttpOnly cookie)
-#   • /auth/refresh     — JWT refresh stub
-#   • All endpoints     — decorated with @limiter.limit() for per-IP rate limiting
-#   • Text fallback     — bleach-sanitized and token-truncated before hitting LLM
+# API routes and WebSocket handlers for Daraz Voice Assistant.
+#   • /ws/chat      : Dual-mode WebSocket (Voice audio + Text JSON)
+#   • /auth         : JWT-based authentication (secure HttpOnly cookies)
+#   • /session      : Session lifecycle management and state tracking
+#   • Rate Limiting : Per-IP throttling on all endpoints (SlowAPI)
+#   • Security      : Input sanitization (Bleach) and token guardrails
 # =============================================================================
 
 import uuid

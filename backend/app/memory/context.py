@@ -1,14 +1,11 @@
 # =============================================================================
 # memory/context.py
-# Awwab — A3 refactor: replaced in-memory active_chats dict with Redis.
+# Redis-based session management for Daraz Voice Assistant.
+# Provides a shared, persistent key-value store for session history and state,
+# enabling horizontal scaling across multiple backend workers.
 #
-# Why Redis?
-#   The in-memory dict is process-local — two uvicorn workers or two Docker
-#   replicas cannot share it, so sessions break under horizontal scaling.
-#   Redis is a shared, persistent key-value store all instances can read/write.
-#
-# Session key format : "session:{session_id}"        → JSON blob
-# All other logic (sliding window, STATE extraction, lifecycle) is unchanged.
+# Session key format : "session:{session_id}" (JSON blob)
+# TTL-based expiration ensures automatic cleanup of inactive sessions.
 # =============================================================================
 
 import json

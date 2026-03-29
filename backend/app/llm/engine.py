@@ -1,6 +1,6 @@
 # =============================================================================
 # llm/engine.py
-# Awwab — A3 refactor: replaced text generation with audio pipeline stubs.
+# Voice-to-Voice orchestration engine.
 #
 # Architecture (Voice-to-Voice pipeline):
 #   audio_bytes → [STT] → text → [LLM] → text → [TTS] → audio_bytes
@@ -166,7 +166,7 @@ async def _generate_text(session_id: str, user_text: str) -> str:
     Delegates to the thread pool so the async loop stays free during inference.
     """
     if _llm is None:
-        raise RuntimeError("LLM not loaded. Uwaid: assign a model instance to _llm.")
+        raise RuntimeError("LLM not loaded. Ensure MODEL_PATH is correct.")
 
     from app.core.config import build_chatml_prompt, TEMPERATURE, TOP_P, REPEAT_PENALTY
 
@@ -197,9 +197,8 @@ async def _generate_text(session_id: str, user_text: str) -> str:
 
 
 # =============================================================================
-# STAGE 3 — TEXT-TO-SPEECH  (Uwaid: Piper TTS)
-# Piper synthesizes directly into a wave.Wave_write object — we point it at
-# an in-memory buffer so no disk I/O is needed at inference time.
+# STAGE 3 — TEXT-TO-SPEECH (Piper TTS)
+# Piper synthesizes directly into a wave.Wave_write object.
 # =============================================================================
 
 async def synthesize_speech(text: str, session_id: str) -> bytes:
@@ -239,10 +238,7 @@ async def synthesize_speech(text: str, session_id: str) -> bytes:
 
 
 # =============================================================================
-# ORCHESTRATION LAYER (Awwab's scope)
-# Routes.py calls process_audio() — it chains STT → LLM → TTS and handles
-# session lifecycle. The three model stages are isolated; swapping any one
-# does not require changes here, only in its own function above.
+# ORCHESTRATION LAYER
 # =============================================================================
 
 class VoiceEngine:
@@ -279,8 +275,7 @@ class VoiceEngine:
             Audio bytes of the assistant's spoken reply.
 
         Raises:
-            NotImplementedError : Until Uwaid implements STT and TTS stubs.
-            RuntimeError        : If the LLM is not loaded.
+            RuntimeError : If the LLM/TTS is not loaded.
         """
         start = time.perf_counter()
 

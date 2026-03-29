@@ -213,7 +213,7 @@ frontend/dist/
 frontend/.vite/
 
 # Models (large binary files — add manually outside git)
-models/*.gguf
+models/
 
 # SQLite DB
 data/

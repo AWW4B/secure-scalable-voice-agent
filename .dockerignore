@@ -1,0 +1,60 @@
+# Models (Prevent copying 2GB+ model into build context)
+models/
+data/
+*.gguf
+*.onnx
+*.onnx.json
+*.db
+
+# Node modules
+node_modules/
+frontend/node_modules/
+dist/
+frontend/dist/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Git and IDEs
+.git/
+.gitignore
+.dockerignore
+.vscode/
+.idea/
+.cursor/
+.cursorignore
+.cursorindexingignore
+
+# Logs and results
+*.log
+results/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# OS Junk
+.DS_Store
+Thumbs.db

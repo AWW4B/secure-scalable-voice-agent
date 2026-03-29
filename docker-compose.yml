@@ -11,7 +11,7 @@
 #                                          └─────────────┘
 #
 # Volumes:
-#   model-data  → GGUF + Piper .onnx model files (read-only) [Uwaid populates]
+#   model-data  → GGUF + Piper .onnx model files (read-only)
 #   db-data     → SQLite sessions.db persistence
 #   redis-data  → Redis RDB snapshot persistence
 # =============================================================================
@@ -56,8 +56,7 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379/0
       - MODEL_PATH=/models/qwen2.5-3b-instruct-q4_k_m.gguf
-      # Piper TTS voice model — Uwaid: place .onnx + .onnx.json in ./models/
-      # Download from: https://github.com/rhasspy/piper/releases/tag/v0.0.2
+      # Piper TTS voice model path (matching .onnx.json must exist in same dir)
       - PIPER_MODEL=/models/en_US-lessac-medium.onnx
       - FRONTEND_ORIGIN=${FRONTEND_ORIGIN:-http://localhost:3000}
       - JWT_SECRET=${JWT_SECRET:-CHANGE_ME_IN_PRODUCTION}
@@ -71,10 +70,9 @@ services:
       - "8000:8000"
 
   # ---------------------------------------------------------------------------
-  # FRONTEND DEV — Vite dev server with HMR (Rayan: use this for development)
+  # FRONTEND DEV — Vite dev server with HMR
   #   docker compose up frontend-dev
-  #   → React app at http://localhost:3000
-  #   → All /api + /ws + /auth traffic proxied to backend:8000
+  #   → React app at http://localhost:3000 (proxies /api + /ws to backend:8000)
   # ---------------------------------------------------------------------------
   frontend-dev:
     image: node:20-alpine

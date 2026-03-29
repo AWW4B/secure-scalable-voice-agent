@@ -1,9 +1,8 @@
 # =============================================================================
 # memory/database.py
-# Awwab — A3 addition: bleach sanitization applied to all message content
-#         before it is written to SQLite, preventing stored XSS.
-#
-# All other logic (schema, CRUD, session loading) is unchanged from A2.
+# SQLite persistence layer for Daraz Voice Assistant.
+# Provides long-term storage for session history and critical state.
+# All message content is sanitized via `bleach` to prevent stored XSS.
 # =============================================================================
 
 import os
