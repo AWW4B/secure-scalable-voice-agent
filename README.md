@@ -320,4 +320,4 @@ docker compose down -v
 | `JWT_SECRET` | `CHANGE_ME_IN_PRODUCTION` | Change to any long random string before deploying |
 | `PYTHONUNBUFFERED` | `1` | Ensures Docker logs appear immediately |
 
----
+---# rag-based-ai-assistant
